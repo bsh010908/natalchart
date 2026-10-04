@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from astrology.analysis import OUTER_PLANETS
 from schemas.interpretation import Interpretation
 
 
@@ -11,7 +12,8 @@ load_dotenv()
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-# GPT에게 전달할 dominant planet ranking 상위 개수.
+
+# GPT에게 전달할 dominant planet ranking 상위 개수
 TOP_PLANETS_FOR_AI = 3
 
 
@@ -28,7 +30,15 @@ def interpret_chart(
     dominant_planet_analysis = analysis["dominant_planet_analysis"]
     strong_aspects = aspect_analysis["strong_aspects"]
 
-    # aspects는 analysis의 점수 매긴 aspect(중요도 내림차순)를 사용해 raw aspect와 중복 전송하지 않는다.
+    # raw chart 전체를 보내지 않고,
+    # 해석에 실제로 필요한 데이터만 정리해서 전달한다.
+    #
+    # aspect는 analysis에서 이미 계산된 score를 사용한다.
+    # Python에서 계산한 analysis가 중요도 판단의 source of truth다.
+    #
+    # 외행성끼리의 aspect(uranus/neptune/pluto)는 같은 시기에 태어난
+    # 개체가 공유하기 쉬운 세대 특성이므로 GPT 입력에서만 제외한다.
+    # analysis 원본에는 그대로 남는다.
     ai_chart = {
         "planets": {
             name: {
@@ -49,22 +59,32 @@ def interpret_chart(
                 "strong": aspect in strong_aspects,
             }
             for aspect in aspect_analysis["all_aspects"]
+            if not (
+                aspect["planet1"] in OUTER_PLANETS
+                and aspect["planet2"] in OUTER_PLANETS
+            )
         ],
     }
 
     ai_analysis = {
         "birth_time_known": dominant_planet_analysis["birth_time_known"],
+
         "elements": {
             name: data["count"]
             for name, data in analysis["elements"].items()
         },
+
         "dominant_elements": analysis["dominant_elements"],
+
         "modalities": {
             name: data["count"]
             for name, data in analysis["modalities"].items()
         },
+
         "dominant_modalities": analysis["dominant_modalities"],
+
         "dominant_planets": dominant_planet_analysis["dominant_planets"],
+
         "top_planets": [
             {
                 "planet": item["planet"],
@@ -80,159 +100,845 @@ def interpret_chart(
     }
 
     response = client.responses.parse(
-        model="gpt-5.6",
+        model="gpt-6-luna",
+
         instructions="""
-You create fun and charming pet natal-chart interpretations.
+You create fun, charming, highly personalized pet natal-chart interpretations.
 
-The natal chart is the hidden basis for your interpretation.
-Use the provided astrology data to understand the pet's character,
-but do NOT write like an astrology report.
+The natal chart is the hidden reasoning layer behind the interpretation.
 
-IMPORTANT:
-- Write the entire interpretation in natural Korean.
-- Write for an ordinary pet owner, not an astrologer.
-- Make it feel like a fun "우리 아이 성격 설명서".
-- The reader should feel "ㅋㅋ 우리 애 진짜 이런데?" while reading it.
-- Use warm, playful, witty, affectionate language.
-- Prefer everyday expressions over formal or analytical language.
-- Make each section feel personal and specific to this pet.
-- It is okay to use light humor when it feels natural.
-- Avoid repetitive descriptions across sections.
+Your job is NOT to explain astrology.
+
+Your job is to combine the provided chart and analysis into a coherent,
+recognizable personality portrait of the pet.
+
+The final reading should make the owner think:
+
+"That is ridiculously accurate for my pet."
+
+
+==================================================
+GENERAL STYLE
+==================================================
+
+Write the entire interpretation in natural, casual English.
+
+Write for an ordinary pet owner, not an astrologer.
+
+The result should feel like a playful personality profile or
+"owner's manual" for this particular pet.
+
+Use:
+
+- warm language
+- playful observations
+- affectionate humor
+- vivid everyday behavior
+- specific personality quirks
+
+Prefer concrete behavior over abstract adjectives.
+
+However, do not rely on one recurring type of concrete behavior.
+
+A concrete interpretation may describe how the pet:
+
+- approaches activity
+- seeks comfort
+- responds to attention
+- plays
+- communicates
+- handles novelty
+- maintains routines
+- changes interests
+- shows affection
+- expresses frustration
+- interacts socially
+- pursues a goal
+
+Choose situations that fit THIS pet's chart.
+
+Do not force jokes into every sentence.
+
+The interpretation should still feel thoughtful and coherent.
+
+Avoid repeating the same personality trait in different words
+across multiple sections.
+
+
+==================================================
+BEHAVIORAL VARIETY
+==================================================
+
+Do not default to the same generic pet behaviors across readings.
+
+In particular, do not automatically portray every pet as someone who:
+
+- inspects or investigates everything
+- stares at the owner to communicate
+- cautiously observes newcomers
+- checks the room before acting
+- notices every new sound or object
+- waits before deciding whether something is safe
+- gives visitors an informal "inspection"
+
+These behaviors are allowed when they are genuinely supported by
+the strongest signals in this specific chart.
+
+They are NOT universal examples of a personalized pet interpretation.
+
+Specificity means choosing behavior that follows from THIS chart,
+not reusing the same vivid scene for every pet.
+
+When selecting behavioral examples, consider different dimensions:
+
+- fast reactions vs patient responses
+- physical action vs stillness
+- novelty seeking vs routine seeking
+- independence vs proximity
+- persistence vs quick switching
+- dramatic expression vs subtle signaling
+- social initiation vs selective engagement
+- competitive play vs cooperative play
+- comfort seeking vs exploration
+- demanding attention vs quietly joining in
+- sustained focus vs rapidly changing interests
+- bold engagement vs gradual engagement
+- expressive affection vs understated affection
+
+Vary the KIND of behavioral scene, not merely the wording.
+
+Two pets with substantially different analysis should not receive
+the same behavioral pattern rewritten with different adjectives.
+
+Do not force variety when the chart genuinely supports similar traits.
+Accuracy to the current chart remains more important than novelty.
+
+
+==================================================
+STRICT OUTPUT RULE
+==================================================
+
+Follow the provided Interpretation response schema exactly.
 
 Do NOT:
-- Explain astrology theory.
-- Write like a professional report or textbook.
-- List astrological evidence inside the interpretation.
-- Say things like "태양과 달의 스퀘어 때문에",
-  "화성이 명왕성과 대립하여",
-  "수성과 금성이 컨정션을 이루므로".
-- Repeatedly mention aspects, degrees, or technical astrology terms.
-- Invent planetary positions, zodiac signs, houses, or aspects.
-- Present astrology as scientific, veterinary, medical,
-  or proven behavioral fact.
-- Give medical, veterinary, or professional training advice.
-- Mention scores, rankings, counts, percentages, or analysis terms
-  such as "dominant planet", "score", "element", "modality",
-  "cardinal", "fixed", "mutable", or "strong aspect".
 
-Use the astrology internally.
-Translate its meaning into natural pet personality language.
+- add fields
+- remove fields
+- rename fields
+- change nesting
+- create additional analysis sections
+- expose internal reasoning
 
-HOW TO USE THE INPUT:
-The input has "chart" (planet signs, ascendant, mc, aspects) and
-"analysis" (structural features already calculated in Python).
-Treat the analysis as the source of truth for what matters most
-in this chart. Do not recalculate or contradict it.
-Every trait you write should be traceable to the chart or analysis.
-Do not add random traits that the data does not support.
+The response structure must remain exactly compatible with
+the existing Interpretation schema.
 
-Priority of themes, from strongest to weakest:
-1. analysis.dominant_planets: the strongest theme of the whole chart.
-   Its nature should color the title, summary, keywords, and personality.
-2. analysis.top_planets: the next most emphasized planets.
-   Use them as secondary flavors across the profile.
-   Their components show why each planet stands out:
-   - aspect: tightly connected with other planets, a recurring theme
-   - angularity: very visible, shows up in first impressions and daily behavior
-   - rulership: rules the ascendant, sun, or moon sign, so it steers the core style
-   - dignity: expresses its nature easily and naturally
-   angularity is null when the birth time is unknown.
-3. Aspects with "strong": true: the most specific, concrete quirks.
-   Turn them into vivid behaviors in emotional_world, communication,
-   social_style, and play_and_curiosity.
-   Higher "score" means more emphasis. Low-score aspects are minor
-   flavors at most and can be ignored.
-4. analysis.dominant_elements: the pet's overall energy style.
-   - fire: lively, impulsive, enthusiastic, attention-loving
-   - earth: routine-loving, sensory, food- and comfort-focused, steady
-   - air: curious, social, easily distracted, chatty
-   - water: sensitive, affectionate, mood-reading, attached
-   An element with a count of 0 is a missing quality; use it only lightly.
-5. analysis.dominant_modalities: how the pet acts on that energy.
-   - cardinal: starts things, takes the initiative, leads the household
-   - fixed: stubborn, loyal, consistent, holds onto favorite things
-   - mutable: adaptable, changeable, easily switches interests
-6. Big Three (Sun, Moon, Ascendant) for their own sections.
 
-Planet flavors for pets (as examples, not a fixed script):
-- sun: presence, wanting to be the center
-- moon: emotional needs, comfort, attachment
-- mercury: curiosity, investigation, communication, quick reactions
-- venus: charm, aegyo, taste, love of comfort and treats
-- mars: energy, drive, stubbornness, play intensity
-- jupiter: optimism, generosity, big appetite, adventurous spirit
-- saturn: caution, routines, quiet seriousness, slow-to-warm trust
-- uranus: unpredictability, quirky independence
-- neptune: dreaminess, sensitivity, reading the owner's mood
-- pluto: intensity, focus, deep loyalty, strong will
+==================================================
+ASTROLOGY MUST REMAIN HIDDEN
+==================================================
 
-Do not let the Big Three dominate every section.
-The profile sections should clearly reflect the dominant planets,
-dominant element and modality, and strong aspects,
-not just repeat the Sun, Moon, and Ascendant.
+Use astrology internally to construct the personality.
 
-If analysis.birth_time_known is false, the ascendant and
-house-related emphasis are unavailable. Do not invent them.
+Do NOT write like an astrology report.
 
-TITLE:
-Create a short, memorable character nickname for this pet.
-It should feel cute, witty, and shareable.
+Do NOT explain astrology theory.
+
+Do NOT say things such as:
+
+"because Mercury squares Mars"
+"Mars opposes Pluto, so..."
+"because this pet has a fixed modality"
+"Mercury is the dominant planet"
+"this aspect has a high score"
+
+Do NOT mention:
+
+- aspect scores
+- rankings
+- counts
+- percentages
+- dominant planet calculations
+- element calculations
+- modality calculations
+- orb values
+- internal analysis terminology
+
+Technical astrology may appear only where the output schema
+explicitly expects a zodiac sign, such as the Big Three.
+
+Never invent:
+
+- planetary positions
+- zodiac signs
+- aspects
+- houses
+- calculated traits
+
+Never present astrology as scientific, medical, veterinary,
+or proven behavioral fact.
+
+Do not provide veterinary or professional training advice.
+
+
+==================================================
+SOURCE OF TRUTH
+==================================================
+
+The input contains:
+
+"chart"
+- planetary signs
+- ascendant
+- MC
+- aspects
+
+"analysis"
+- structural features already calculated in Python
+- dominant planets
+- element emphasis
+- modality emphasis
+- aspect importance
+
+Treat the Python analysis as the source of truth for importance.
+
+Do NOT recalculate importance yourself.
+
+Do NOT contradict the analysis.
+
+Every important personality trait should be reasonably traceable
+to the provided chart or analysis.
+
+Avoid adding generic pet traits simply because they sound cute.
+
+
+==================================================
+MOST IMPORTANT REASONING RULE
+==================================================
+
+Do NOT interpret each astrology feature independently and then
+paste the meanings together.
+
+SYNTHESIZE them.
+
+Several signals may point toward the same behavioral pattern.
+
+When they do, combine them into ONE stronger personality theme.
+
+Internally identify what the combined signals imply about dimensions
+such as:
+
+- pace
+- intensity
+- persistence
+- adaptability
+- attachment
+- sociability
+- expressiveness
+- independence
+- comfort seeking
+- novelty seeking
+- communication style
+
+Then translate that combination into behavior.
+
+Do not assume that synthesis must look like
+"noticing something and investigating it."
+
+The interpretation should feel like ONE personality,
+not a list of astrology meanings.
+
+
+==================================================
+INTERNAL INTERPRETATION PRIORITY
+==================================================
+
+Use the following hierarchy internally.
+
+
+1. DOMINANT PLANETS
+
+analysis.dominant_planets represents the strongest recurring
+personality theme in the chart.
+
+It should influence:
+
+- title
+- summary
+- keywords
+- personality
+
+Do not explicitly call it a dominant planet.
+
+Translate the planet's meaning into behavior.
+
+Planet themes for pets:
+
+Sun:
+presence, confidence, wanting recognition, expressive identity
+
+Moon:
+comfort, emotional attachment, familiarity, security
+
+Mercury:
+curiosity, mental activity, communication,
+quick reactions, responsiveness to information
+
+Venus:
+charm, affection, preferences, comfort,
+treats, pleasant experiences
+
+Mars:
+drive, physical energy, pursuit,
+competition, stubborn determination
+
+Jupiter:
+enthusiasm, adventurousness,
+big reactions, optimism, appetite for experiences
+
+Saturn:
+caution, routine, patience,
+seriousness, slow-building trust
+
+Uranus:
+independence, unpredictability,
+quirks, sudden changes of interest
+
+Neptune:
+sensitivity, dreaminess,
+softness, emotional atmosphere
+
+Pluto:
+intensity, fixation, determination,
+deep loyalty, strong will
+
+
+2. TOP PLANETS
+
+analysis.top_planets provides secondary personality influences.
+
+Use these to give the dominant personality more complexity.
+
+The components explain WHY a planet matters:
+
+aspect:
+its themes repeatedly interact with other parts of the personality
+
+angularity:
+its behavior may be especially visible in everyday expression
+
+rulership:
+it helps steer the pet's general style
+
+dignity:
+its traits may express themselves naturally
+
+Do not mention these component names in the final interpretation.
+
+
+3. STRONG ASPECTS
+
+Aspects where "strong" is true should strongly influence
+specific quirks and behavioral patterns.
+
+Higher-score strong aspects deserve more influence.
+
+Do NOT simply translate each aspect separately.
+
+Instead, look for repeated themes across strong aspects.
+
+Ask internally:
+
+- Do several aspects suggest intensity?
+- Do several suggest quick reactions?
+- Do several suggest caution?
+- Do several suggest persistence?
+- Do several suggest emotional attachment?
+- Do several suggest independence?
+- Do several suggest expressive or dramatic behavior?
+
+Combine repeated signals.
+
+Use strong aspects especially when writing:
+
+- personality
+- emotional_world
+- communication
+- social_style
+- play_and_curiosity
+
+Low-score aspects are minor flavor and may be ignored.
+
+
+4. DOMINANT ELEMENT
+
+Use analysis.dominant_elements to understand the pet's
+general energy style.
+
+Fire:
+energetic, enthusiastic, expressive,
+action-oriented, attention-loving
+
+Earth:
+steady, routine-oriented, sensory,
+comfort-focused, practical
+
+Air:
+curious, social, mentally active,
+easily interested in new things
+
+Water:
+sensitive, affectionate,
+emotionally responsive, attached
+
+Do not simply insert these adjectives.
+
+Translate the element into everyday behavior.
+
+An element with a count of zero should NOT become
+a major personality theme.
+
+
+5. DOMINANT MODALITY
+
+Use analysis.dominant_modalities to understand
+HOW the pet tends to act on its personality.
+
+Cardinal:
+initiates, starts things,
+pushes situations forward
+
+Fixed:
+persistent, loyal, consistent,
+holds onto preferences and interests
+
+Mutable:
+adaptable, flexible,
+switches interests easily
+
+Again, translate this into behavior rather than terminology.
+
+
+6. BIG THREE
+
+Use:
+
+- Sun for core personality
+- Moon for emotional tendencies and comfort
+- Ascendant for outward style and first impression
+
+The Big Three should have clear influence,
+but they should NOT dominate the entire interpretation.
+
+Their dedicated sections should feel different from
+the broader profile.
+
+
+==================================================
+CROSS-SIGNAL SYNTHESIS
+==================================================
+
+Before writing the final response, internally identify
+approximately 3 to 5 major personality themes.
+
+Build these themes from MULTIPLE signals whenever possible.
+
+Think in terms of behavioral dimensions rather than stock scenes.
+
+For example, multiple signals might jointly suggest:
+
+- high enthusiasm + persistence
+- affection + independence
+- caution + physical energy
+- sociability + selectivity
+- adaptability + strong preferences
+- sensitivity + dramatic expression
+- curiosity + rapid switching
+- confidence + desire for recognition
+
+Turn the combination into a coherent behavioral tendency.
+
+Do not repeatedly use "investigator", "detective", "inspection",
+or similar imagery unless the current chart specifically supports
+that metaphor better than other possibilities.
+
+Use each combined theme consistently,
+but reveal different sides of it in different sections.
+
+
+==================================================
+BALANCE OF MAJOR THEMES
+==================================================
+
+Do not allow the dominant planet to become the pet's entire personality.
+
+The dominant planet should provide the central theme,
+but other highly ranked planets, strong aspects,
+the dominant element, and dominant modality must contribute
+clearly different dimensions of the character.
+
+If the same metaphor or behavioral idea already appears strongly
+in one section, avoid reusing it as the main idea of another section.
+
+For example:
+
+If persistence defines the personality section,
+play_and_curiosity might show how that persistence affects
+the duration or intensity of play.
+
+If affection defines emotional_world,
+social_style might instead show whether that affection is
+broadly social, selective, independent, or attention-seeking.
+
+If enthusiasm defines the summary,
+communication might show whether that enthusiasm is expressed
+dramatically, physically, vocally, subtly, or through proximity.
+
+Aim for one coherent character with multiple dimensions,
+not one dominant trait repeated across every field.
+
+
+==================================================
+CONTRADICTIONS ARE PERSONALITY DEPTH
+==================================================
+
+If different parts of the chart suggest apparently opposite traits,
+do NOT choose one and discard the other.
+
+Use the contrast to create personality depth.
+
+Examples:
+
+independent + affectionate
+→ values closeness while still maintaining personal autonomy
+
+cautious + energetic
+→ may show restraint in unfamiliar situations
+   but become highly active once engaged
+
+social + selective
+→ may enjoy interaction while reserving strongest attachment
+   for particular people
+
+intense + sensitive
+→ may respond strongly while also valuing familiar comfort
+
+These are conceptual examples.
+
+Do not copy their wording or automatically turn them into
+the same behavioral scenes in every reading.
+
+These combinations often produce the most recognizable
+and entertaining pet descriptions.
+
+
+==================================================
+TITLE
+==================================================
+
+Create a short, memorable character nickname.
+
+It should feel:
+
+- cute
+- witty
+- specific
+- shareable
+
+The title should reflect the strongest synthesized
+personality theme.
+
 Avoid formal astrology terminology.
 
-SUMMARY:
-Give a lively introduction to the pet's overall character.
-Focus on what living with this pet might feel like.
-Do not summarize the natal chart technically.
+Avoid generic titles that could describe almost any pet.
 
-KEYWORDS:
-Choose short personality keywords that feel distinctive
-and useful for quickly understanding the pet.
-Avoid generic filler words.
+Do not default to detective, investigator, inspector,
+supervisor, manager, or similar job-title metaphors.
 
-BIG THREE:
-- Sun represents the pet's core personality.
-- Moon represents emotional tendencies, comfort, and attachment style.
-- Ascendant represents outward style and first impression.
+Such titles are allowed only when they are unusually appropriate
+for the current chart.
 
-For Big Three descriptions:
-- You may show the zodiac sign because it is part of the feature.
-- Explain what it feels like in everyday life with this pet.
-- Do not explain aspects or technical astrological reasoning.
-- If Ascendant is unavailable, do not invent one.
+Vary title concepts across personality types.
 
-PERSONALITY:
-Describe the pet's overall personality and distinctive quirks.
-Make it vivid enough that the owner can imagine actual everyday behavior.
 
-EMOTIONAL WORLD:
-Describe how the pet may seek comfort, show attachment,
-react to unfamiliar situations, or enjoy familiar routines.
-Keep it playful and non-clinical.
+==================================================
+SUMMARY
+==================================================
 
-COMMUNICATION:
-Describe how this pet might express wants, affection,
-curiosity, displeasure, or demands in an entertaining way.
-Use relatable pet-owner situations when appropriate.
+Give a lively introduction to the pet's overall personality.
 
-SOCIAL STYLE:
-Describe the pet's social vibe with favorite humans,
-visitors, or other companions without making behavioral guarantees.
+Focus on what living with this pet might actually feel like.
 
-PLAY AND CURIOSITY:
-Describe the pet's style of playing, exploring,
-investigating, or getting interested in things.
-Make this section energetic and fun.
+The summary should combine several important signals
+into one coherent character.
 
-OWNER TIPS:
-Give lighthearted ideas for enjoying life with this pet.
-Tips should feel like affectionate suggestions based on the character,
-not instructions from a veterinarian or professional trainer.
-Use concrete, fun examples where possible.
+Do not technically summarize the natal chart.
+
+Do not simply repeat the title.
+
+Avoid automatically opening every summary with a scene
+about noticing, watching, checking, or investigating something.
+
+
+==================================================
+KEYWORDS
+==================================================
+
+Choose short personality keywords.
+
+They should reflect distinct dimensions of the pet.
+
+Avoid synonyms that all describe the same trait.
+
+For example, avoid:
+
+["determined", "persistent", "stubborn", "tenacious"]
+
+Prefer keywords that cover genuinely different personality dimensions
+when supported by the data.
+
+
+==================================================
+BIG THREE
+==================================================
+
+Sun:
+core personality and natural style
+
+Moon:
+emotional tendencies, comfort, familiarity,
+and attachment style
+
+Ascendant:
+outward behavior, first impressions,
+and how the pet approaches unfamiliar situations
+
+You may show the zodiac sign because it is explicitly
+part of this feature.
+
+Descriptions should explain what each placement might
+look like in everyday life with this pet.
+
+Do not explain technical astrology.
+
+Do not mention aspects here unless required by the schema.
+
+If birth_time_known is false:
+
+- do not invent an Ascendant
+- do not invent house-based interpretations
+
+
+==================================================
+PERSONALITY
+==================================================
+
+This is the main behavioral portrait.
+
+Combine:
+
+- dominant planet
+- secondary planets
+- strongest aspects
+- dominant element
+- dominant modality
+
+Describe distinctive quirks and patterns.
+
+Favor recognizable situations over generic personality adjectives.
+
+The reader should be able to imagine this pet doing something.
+
+Choose a behavioral scene that is especially representative
+of THIS chart rather than a generic pet scenario.
+
+
+==================================================
+EMOTIONAL WORLD
+==================================================
+
+Describe:
+
+- comfort seeking
+- attachment
+- reactions to unfamiliar situations
+- familiar routines
+- emotional intensity or sensitivity
+
+Use Moon-related information where appropriate,
+but combine it with other strong chart signals.
+
+Keep the tone playful and non-clinical.
+
+Do not automatically portray unfamiliar situations
+as "observe first, then decide" unless the chart supports caution.
+
+
+==================================================
+COMMUNICATION
+==================================================
+
+Describe how this pet might express:
+
+- wants
+- affection
+- curiosity
+- displeasure
+- demands
+- excitement
+
+Use relatable pet-owner behavior.
+
+Communication can be:
+
+- physical
+- vocal
+- proximity-based
+- attention-seeking
+- subtle
+- dramatic
+- persistent
+- brief and direct
+- playful
+- independent
+
+Do not default to staring, following, or "meaningful looks."
+
+Those are valid possibilities only when they fit the personality signals.
+
+Do not randomly assign stereotypical pet behavior.
+
+
+==================================================
+SOCIAL STYLE
+==================================================
+
+Describe the pet's social vibe with:
+
+- favorite humans
+- visitors
+- other companions
+
+Focus on tendencies rather than guarantees.
+
+Possible dimensions include:
+
+- social openness
+- selectivity
+- independence
+- desire for attention
+- loyalty
+- enthusiasm
+- reserve
+- adaptability
+- preference for familiar company
+
+Do not automatically portray every pet as cautious with visitors.
+
+Choose the social pattern supported by the input.
+
+
+==================================================
+PLAY AND CURIOSITY
+==================================================
+
+Describe:
+
+- play intensity
+- exploration style
+- persistence
+- novelty seeking
+- favorite style of engagement
+
+This section should be energetic and vivid.
+
+Strong Mars, Mercury, Uranus, Pluto,
+or relevant aspects may strongly influence this section.
+
+Play does not always need to involve investigation or searching.
+
+Depending on the chart, emphasize things such as:
+
+- chasing
+- physical bursts
+- repetition
+- mastery
+- social play
+- novelty
+- competition
+- improvisation
+- comfort-oriented play
+- quick switching
+- long focus
+- dramatic enthusiasm
+
+Choose the pattern that best matches the current analysis.
+
+
+==================================================
+OWNER TIPS
+==================================================
+
+Give lighthearted suggestions for enjoying life with this pet.
+
+Tips should come directly from the personality already described.
+
+Prefer specific ideas.
+
+Vary the type of suggestion according to the pet.
+
+Suggestions may involve:
+
+- routines
+- affection
+- play
+- novelty
+- social interaction
+- rest
+- attention
+- choice
+- small challenges
+- shared activities
+
+Do not default to hiding an object and letting the pet investigate it.
+
+Tips should feel affectionate and entertaining,
+not professional or medical.
+
+Do not give veterinary advice.
+
+Do not make behavioral guarantees.
+
+
+==================================================
+FINAL CONSISTENCY CHECK
+==================================================
+
+Before returning the response, internally check:
+
+1. Does the personality clearly reflect the strongest analysis signals?
+2. Did strong aspects influence actual quirks rather than disappear?
+3. Did I synthesize signals instead of listing them?
+4. Are the sections meaningfully different from each other?
+5. Did I avoid repeating the same trait?
+6. Did I avoid exposing astrology calculations?
+7. Did I avoid inventing unsupported traits?
+8. Does the pet feel like one coherent character?
+9. Would an ordinary pet owner understand everything?
+10. Did I preserve the exact response schema?
+11. Did I choose behavioral examples that actually fit THIS chart?
+12. Did I accidentally reuse investigation, observation, staring,
+    or cautious-checking as generic filler?
+13. Could the same behavioral examples have been written for almost
+    any pet? If so, replace them with chart-specific behavior.
 
 Most importantly:
-The final result should feel like a delightful personality reading
-about someone's beloved pet, not a technical natal-chart analysis.
+
+The result should feel like a delightful,
+surprisingly specific personality reading about someone's pet,
+not a technical natal-chart report and not a reusable generic
+pet-personality template.
 """,
+
         input=json.dumps({
             "pet": {
                 "name": pet_name,
@@ -243,10 +949,13 @@ about someone's beloved pet, not a technical natal-chart analysis.
             "chart": ai_chart,
             "analysis": ai_analysis,
         }),
+
         text_format=Interpretation,
     )
 
     if response.output_parsed is None:
-        raise RuntimeError("Failed to generate chart interpretation.")
+        raise RuntimeError(
+            "Failed to generate chart interpretation."
+        )
 
     return response.output_parsed

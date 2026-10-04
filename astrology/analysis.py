@@ -111,6 +111,19 @@ DOMINANT_WEIGHTS = {
     "dignity": 0.10,
 }
 
+# 출생시간이 없으면 angularity를 쓸 수 없고 rulership도 Sun/Moon ruler만 남으므로
+# rulership 비중을 낮춘다. 정규화 후 실질 비중: aspect 58.33% / rulership 25% / dignity 16.67%
+DOMINANT_WEIGHTS_WITHOUT_TIME = {
+    "aspect": 0.35,
+    "rulership": 0.15,
+    "dignity": 0.10,
+}
+
+# 1위와의 score 차이가 이 값 미만이면 공동 dominant로 본다.
+DOMINANT_SCORE_THRESHOLD = 0.03
+
+MAX_DOMINANT_PLANETS = 2
+
 
 # 행성별 별자리를 매핑 기준으로 분류해 그룹별 개수와 비율을 계산한다.
 def calculate_distribution(
@@ -288,12 +301,8 @@ def calculate_dignity(planet: str, sign: str) -> float:
 def analyze_dominant_planets(chart: dict, aspects: list[dict]) -> dict:
     birth_time_known = chart["birth"]["birth_time_known"]
 
-    # 출생시간이 없으면 angularity를 빼고 남은 weight 합으로 다시 정규화한다.
-    weights = {
-        component: weight
-        for component, weight in DOMINANT_WEIGHTS.items()
-        if birth_time_known or component != "angularity"
-    }
+    # 출생시간이 없으면 angularity가 없는 별도 weight를 쓰고, 사용한 weight 합으로 정규화한다.
+    weights = DOMINANT_WEIGHTS if birth_time_known else DOMINANT_WEIGHTS_WITHOUT_TIME
     rulership_scores = calculate_rulership_scores(chart)
 
     ranking = []
@@ -333,8 +342,8 @@ def analyze_dominant_planets(chart: dict, aspects: list[dict]) -> dict:
         "dominant_planets": [
             item["planet"]
             for item in ranking
-            if item["score"] == top_score
-        ],
+            if top_score - item["score"] < DOMINANT_SCORE_THRESHOLD
+        ][:MAX_DOMINANT_PLANETS],
         "ranking": ranking,
     }
 
