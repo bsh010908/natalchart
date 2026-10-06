@@ -15,7 +15,7 @@ class ChartRequest(BaseModel):
 
     pet_name: Name
     pet_type: Literal["dog", "cat"]
-    pet_gender: Literal["male", "female"]
+    pet_gender: Literal["male", "female", "other"]
     pet_breed: Breed
 
     pet_birth_date: date
