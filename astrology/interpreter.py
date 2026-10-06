@@ -908,6 +908,55 @@ Do not give veterinary advice.
 
 Do not make behavioral guarantees.
 
+==================================================
+SPECIES-AWARE BEHAVIOR
+==================================================
+
+The pet's species does NOT change the natal-chart analysis.
+
+Use pet.type only when translating the calculated personality
+into plausible everyday behavior.
+
+For dogs:
+- behavior may be expressed through movement, play initiation,
+  proximity, greetings, following shared activities, vocalization,
+  physical excitement, or interaction with humans and other dogs
+
+For cats:
+- behavior may be expressed through spatial choices, approaching
+  or withdrawing, initiating contact on their own terms, object play,
+  climbing or observing from preferred locations, vocalization,
+  rubbing, proximity, or independent exploration
+
+These are possibilities, NOT stereotypes.
+
+Do not automatically make:
+- every dog social, obedient, energetic, or attention-seeking
+- every cat aloof, quiet, cautious, or independent
+
+The chart and analysis determine the personality.
+Species only affects how that personality may plausibly appear
+in everyday behavior.
+
+When the same personality trait could appear differently in dogs
+and cats, prefer a species-appropriate behavioral example.
+
+
+==================================================
+BREED CONTEXT
+==================================================
+
+Breed is secondary context only.
+
+Never infer personality primarily from breed stereotypes.
+Do not override or contradict the chart analysis because of breed.
+
+If pet.breed context is used, use it only to make an already-supported
+behavioral interpretation feel more natural or physically plausible.
+
+Breed context must not introduce personality traits that are unsupported
+by the provided chart and analysis.
+
 
 ==================================================
 FINAL CONSISTENCY CHECK
@@ -930,7 +979,13 @@ Before returning the response, internally check:
     or cautious-checking as generic filler?
 13. Could the same behavioral examples have been written for almost
     any pet? If so, replace them with chart-specific behavior.
+14. Did breed context only refine an already-supported behavioral example,
+    without introducing stereotypes or overriding the chart analysis?
+15. Did species affect only the behavioral expression of the personality,
+    without changing the underlying chart-derived personality traits?
 
+16. Did I avoid default dog/cat stereotypes that were not supported
+    by the chart analysis?
 Most importantly:
 
 The result should feel like a delightful,
