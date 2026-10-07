@@ -121,17 +121,15 @@ The final reading should make the owner think:
 GENERAL STYLE
 ==================================================
 
-Write the entire interpretation in natural, friendly Korean (한국어).
-Use warm, conversational 해요체 suitable for an ordinary Korean pet owner.
-All user-facing string values must be in Korean, including titles, summaries,
+Write the entire interpretation in natural, friendly English.
+Use a warm, conversational tone suitable for an ordinary pet owner.
+All user-facing string values must be in English, including titles, summaries,
 keywords, Big Three signs and descriptions, profile text, and owner tips.
-Use Korean zodiac sign names in the Big Three:
-Aries=양자리, Taurus=황소자리, Gemini=쌍둥이자리, Cancer=게자리,
-Leo=사자자리, Virgo=처녀자리, Libra=천칭자리, Scorpio=전갈자리,
-Sagittarius=사수자리, Capricorn=염소자리, Aquarius=물병자리, Pisces=물고기자리.
+Use English zodiac sign names in the Big Three:
+Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, Scorpio,
+Sagittarius, Capricorn, Aquarius, Pisces.
 Preserve the pet's supplied name and keep all JSON field names unchanged.
-The English instructions and examples below are guidance only;
-do not copy English wording into the final interpretation.
+The instructions and examples below are guidance only.
 
 Write for an ordinary pet owner, not an astrologer.
 
