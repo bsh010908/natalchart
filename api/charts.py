@@ -62,19 +62,8 @@ def create_human_chart(
 ):
     request_started = time.perf_counter()
     timings: dict[str, float] = {}
-    stage = "database"
+    stage = "calculation"
     try:
-        with measure_compatibility_step(timings, "db_save_commit"):
-            user = User(
-                user_name=payload.user_name,
-                user_email=payload.user_email,
-                user_birth_date=payload.user_birth_date,
-                user_birth_time=payload.user_birth_time,
-                user_city=payload.user_city,
-            )
-            db.add(user)
-            db.flush()
-        stage = "calculation"
         with measure_compatibility_step(timings, "human_chart_calculation"):
             human_chart = calculate_chart(
                 birth_date=payload.user_birth_date,
@@ -90,8 +79,18 @@ def create_human_chart(
                 chart=human_chart,
                 analysis=human_analysis,
             )
+        # The dependency Session is lazy: only acquire a connection after GPT succeeds.
         stage = "database"
         with measure_compatibility_step(timings, "db_save_commit"):
+            user = User(
+                user_name=payload.user_name,
+                user_email=payload.user_email,
+                user_birth_date=payload.user_birth_date,
+                user_birth_time=payload.user_birth_time,
+                user_city=payload.user_city,
+            )
+            db.add(user)
+            db.flush()
             result = {
                 "user_id": user.user_id,
                 "interpretation": human_interpretation,
@@ -137,30 +136,8 @@ def create_compatibility_chart(
 ):
     request_started = time.perf_counter()
     timings: dict[str, float] = {}
-    stage = "database"
+    stage = "calculation"
     try:
-        with measure_compatibility_step(timings, "db_save_commit"):
-            user = User(
-                user_name=payload.user_name,
-                user_email=payload.user_email,
-                user_birth_date=payload.user_birth_date,
-                user_birth_time=payload.user_birth_time,
-                user_city=payload.user_city,
-            )
-            db.add(user)
-            db.flush()
-            pet = Pet(
-                user_id=user.user_id,
-                pet_name=payload.pet_name,
-                pet_type=payload.pet_type,
-                pet_gender=payload.pet_gender,
-                pet_breed=payload.pet_breed,
-                pet_birth_date=payload.pet_birth_date,
-                pet_birth_time=payload.pet_birth_time,
-                pet_city=payload.pet_city,
-            )
-            db.add(pet)
-        stage = "calculation"
         with measure_compatibility_step(timings, "human_chart_calculation"):
             human_chart = calculate_chart(
                 birth_date=payload.user_birth_date,
@@ -233,8 +210,29 @@ def create_compatibility_chart(
         finally:
             for worker_timings in gpt_timings:
                 timings.update(worker_timings)
+        # The dependency Session is lazy: only acquire a connection after GPT succeeds.
         stage = "database"
         with measure_compatibility_step(timings, "db_save_commit"):
+            user = User(
+                user_name=payload.user_name,
+                user_email=payload.user_email,
+                user_birth_date=payload.user_birth_date,
+                user_birth_time=payload.user_birth_time,
+                user_city=payload.user_city,
+            )
+            db.add(user)
+            db.flush()
+            pet = Pet(
+                user_id=user.user_id,
+                pet_name=payload.pet_name,
+                pet_type=payload.pet_type,
+                pet_gender=payload.pet_gender,
+                pet_breed=payload.pet_breed,
+                pet_birth_date=payload.pet_birth_date,
+                pet_birth_time=payload.pet_birth_time,
+                pet_city=payload.pet_city,
+            )
+            db.add(pet)
             db.flush()
             result = {
                 "user_id": user.user_id,
