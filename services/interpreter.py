@@ -130,6 +130,7 @@ def parse_interpretation(
             instructions=instructions,
             input=serialized_input,
             text_format=text_format,
+            reasoning={"effort": "low"},
         )
     finally:
         elapsed_seconds = time.perf_counter() - started
