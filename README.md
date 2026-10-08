@@ -1,8 +1,12 @@
 # MySQL 설정
 
-SQLAlchemy와 PyMySQL을 사용합니다. `users.pet_id`가 `pets.pet_id`를 참조합니다.
-차트 요청마다 pet을 먼저 저장한 뒤 그 pet_id로 user를 저장합니다.
-user가 참조하는 pet은 삭제할 수 없습니다. 출생시간만 NULL을 허용합니다.
+SQLAlchemy와 PyMySQL을 사용합니다. `pets.user_id`가 `users.user_id`를 참조합니다.
+보호자 한 명은 반려동물을 0마리 이상 가질 수 있습니다 (`User.pets` / `Pet.user`).
+차트 요청마다 user를 먼저 저장한 뒤 그 user_id로 pet을 저장합니다.
+현재 차트 API는 요청마다 새 보호자와 반려동물을 생성합니다.
+pet이 참조하는 user는 삭제할 수 없습니다. 보호자와 반려동물의 출생시간만 NULL을 허용합니다.
+요청에는 `user_birth_date`, `user_birth_time`(선택), `user_city`를 포함하고,
+기존 `city` 대신 `pet_city`를 사용합니다. 차트는 반려동물의 출생 정보로 계산합니다.
 생성·수정일시는 MySQL 서버 시각으로 자동 기록합니다.
 차트·분석·해석 결과는 DB에 저장하지 않고 API 응답으로만 반환합니다.
 
@@ -46,7 +50,9 @@ Docker 외부의 MySQL을 쓰거나 볼륨에 테이블이 없다면 `python -m 
 없는 테이블을 생성합니다. 이 명령은 기존 테이블의 구조를 바꾸지 않습니다.
 
 스키마를 바꿨다면 기존 `users`, `pets` 테이블을 삭제한 뒤 다시 생성합니다.
-`users`가 `pets`를 참조하므로 `users`를 먼저 삭제합니다.
+새 스키마에서는 `pets`가 `users`를 참조하므로 `pets`를 먼저 삭제합니다.
+이전 스키마에서 전환하는 경우에는 이전 FK 방향에 따라 `users`를 먼저 삭제해야 합니다.
+테이블 삭제는 데이터를 제거합니다. 기존 데이터가 있다면 백업 후 별도의 데이터 이관이 필요합니다.
 `docker compose down -v`는 볼륨의 모든 DB 데이터를 삭제하므로 주의하세요.
 
 참고: [SQLAlchemy MySQL 문서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html)

@@ -1,26 +1,29 @@
+CREATE TABLE IF NOT EXISTS users (
+    user_id BIGINT NOT NULL AUTO_INCREMENT,
+    user_name VARCHAR(100) NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+    user_birth_date DATE NOT NULL,
+    user_birth_time TIME NULL,
+    user_city VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS pets (
     pet_id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
     pet_name VARCHAR(100) NOT NULL,
     pet_type VARCHAR(50) NOT NULL,
     pet_gender VARCHAR(20) NOT NULL,
     pet_breed VARCHAR(100) NOT NULL,
     pet_birth_date DATE NOT NULL,
     pet_birth_time TIME NULL,
-    city VARCHAR(255) NOT NULL,
+    pet_city VARCHAR(255) NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (pet_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS users (
-    user_id BIGINT NOT NULL AUTO_INCREMENT,
-    pet_id BIGINT NOT NULL,
-    user_name VARCHAR(100) NOT NULL,
-    user_email VARCHAR(255) NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id),
-    KEY ix_users_pet_id (pet_id),
-    CONSTRAINT fk_users_pet_id FOREIGN KEY (pet_id)
-        REFERENCES pets (pet_id) ON DELETE RESTRICT
+    PRIMARY KEY (pet_id),
+    KEY ix_pets_user_id (user_id),
+    CONSTRAINT fk_pets_user_id FOREIGN KEY (user_id)
+        REFERENCES users (user_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

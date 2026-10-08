@@ -1,9 +1,52 @@
+
 from datetime import date, datetime, time
 
 from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, String, Time, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    user_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    user_birth_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+    )
+    user_birth_time: Mapped[time | None] = mapped_column(
+        Time,
+        nullable=True,
+    )
+    user_city: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    pets: Mapped[list["Pet"]] = relationship(
+        back_populates="user",
+    )
 
 
 class Pet(Base):
@@ -13,6 +56,13 @@ class Pet(Base):
         BigInteger,
         primary_key=True,
         autoincrement=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
     pet_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -28,8 +78,10 @@ class Pet(Base):
         Time,
         nullable=True,
     )
-
-    city: Mapped[str] = mapped_column(String(255), nullable=False)
+    pet_city: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -43,37 +95,6 @@ class Pet(Base):
         onupdate=func.now(),
     )
 
-    users: Mapped[list["User"]] = relationship(back_populates="pet")
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    user_id: Mapped[int] = mapped_column(
-        BigInteger,
-        primary_key=True,
-        autoincrement=True,
+    user: Mapped["User"] = relationship(
+        back_populates="pets",
     )
-
-    pet_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("pets.pet_id"),
-        nullable=False,
-    )
-
-    user_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=func.now(),
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-    pet: Mapped["Pet"] = relationship(back_populates="users")
