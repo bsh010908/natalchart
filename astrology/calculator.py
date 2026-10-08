@@ -1,9 +1,27 @@
+import logging
+from contextlib import contextmanager
 from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 import swisseph as swe
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
+
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def calculation_step(step: str):
+    """Log fixed internal labels and exception types, never exception text or inputs."""
+    try:
+        yield
+    except Exception as exc:
+        logger.error(
+            "Chart calculation failed: internal_step=%s exception_type=%s",
+            step, type(exc).__name__,
+        )
+        raise
 
 
 PLANETS = {
@@ -51,29 +69,36 @@ def get_birth_data(
     birth_time: time | None,
     birth_place: str,
 ) -> dict:
-    geolocator = Nominatim(user_agent="pet_natal_chart", timeout=10)
-    location = geolocator.geocode(birth_place)
-    if location is None:
-        raise ValueError(f"Birth place not found: {birth_place}")
+    with calculation_step("geocoder_initialization"):
+        geolocator = Nominatim(user_agent="pet_natal_chart", timeout=10)
 
-    latitude = location.latitude
-    longitude = location.longitude
+    with calculation_step("geocoding"):
+        location = geolocator.geocode(birth_place)
+        if location is None:
+            raise ValueError(f"Birth place not found: {birth_place}")
 
-    timezone_finder = TimezoneFinder()
-    timezone_name = timezone_finder.timezone_at(
-        lat=latitude,
-        lng=longitude,
-    )
-    if timezone_name is None:
-        raise ValueError(f"Timezone not found: {birth_place}")
+        latitude = location.latitude
+        longitude = location.longitude
 
-    effective_birth_time = birth_time if birth_time is not None else time(12)
-    local_datetime = datetime.combine(
-        birth_date,
-        effective_birth_time,
-        tzinfo=ZoneInfo(timezone_name),
-    )
-    utc_datetime = local_datetime.astimezone(timezone.utc)
+    with calculation_step("timezone_finder_initialization"):
+        timezone_finder = TimezoneFinder()
+
+    with calculation_step("timezone_lookup"):
+        timezone_name = timezone_finder.timezone_at(
+            lat=latitude,
+            lng=longitude,
+        )
+        if timezone_name is None:
+            raise ValueError(f"Timezone not found: {birth_place}")
+
+    with calculation_step("birth_datetime_conversion"):
+        effective_birth_time = birth_time if birth_time is not None else time(12)
+        local_datetime = datetime.combine(
+            birth_date,
+            effective_birth_time,
+            tzinfo=ZoneInfo(timezone_name),
+        )
+        utc_datetime = local_datetime.astimezone(timezone.utc)
 
     return {
         "latitude": latitude,
@@ -126,27 +151,35 @@ def calculate_chart(
     birth_place: str,
 ) -> dict:
     birth_data = get_birth_data(birth_date, birth_time, birth_place)
-    julian_day = to_julian_day(birth_data["utc_datetime"])
-    planet_longitudes = calculate_planets(julian_day)
+    with calculation_step("julian_day"):
+        julian_day = to_julian_day(birth_data["utc_datetime"])
 
-    planets = {
-        name: {
-            "longitude": longitude,
-            "sign": sign,
-            "degree": degree,
+    with calculation_step("planet_calculation"):
+        planet_longitudes = calculate_planets(julian_day)
+
+    with calculation_step("zodiac_conversion"):
+        planets = {
+            name: {
+                "longitude": longitude,
+                "sign": sign,
+                "degree": degree,
+            }
+            for name, longitude in planet_longitudes.items()
+            for sign, degree in [get_zodiac_sign(longitude)]
         }
-        for name, longitude in planet_longitudes.items()
-        for sign, degree in [get_zodiac_sign(longitude)]
-    }
+
     houses = None
     if birth_time is not None:
-        houses = calculate_houses(
-            julian_day,
-            birth_data["latitude"],
-            birth_data["longitude"],
-        )
+        with calculation_step("house_calculation"):
+            houses = calculate_houses(
+                julian_day,
+                birth_data["latitude"],
+                birth_data["longitude"],
+            )
 
-    aspects = calculate_aspects(planet_longitudes)
+    with calculation_step("aspect_calculation"):
+        aspects = calculate_aspects(planet_longitudes)
+
     if birth_time is None:
         planets["moon"]["time_uncertain"] = True
         for aspect in aspects:

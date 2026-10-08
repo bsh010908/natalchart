@@ -99,19 +99,25 @@ def create_human_chart(
             }
             db.commit()
         return result
-    except APIError:
+    except APIError as exc:
         with measure_compatibility_step(timings, "db_save_commit"):
             rollback_transaction(db)
         # SDK exception bodies can contain request data and provider internals.
-        logger.warning("Chart request failed: OpenAI service error; stage=%s", stage)
+        logger.warning(
+            "Chart request failed: OpenAI service error; stage=%s exception_type=%s",
+            stage, type(exc).__name__,
+        )
         raise HTTPException(
             status_code=503,
             detail="AI interpretation service is temporarily unavailable.",
         ) from None
-    except Exception:
+    except Exception as exc:
         with measure_compatibility_step(timings, "db_save_commit"):
             rollback_transaction(db)
-        logger.error("Chart request failed: internal error; stage=%s", stage)
+        logger.error(
+            "Chart request failed: internal error; stage=%s exception_type=%s",
+            stage, type(exc).__name__,
+        )
         raise HTTPException(
             status_code=500,
             detail="Unable to create chart. Please try again later.",
@@ -254,19 +260,25 @@ def create_compatibility_chart(
             }
             db.commit()
         return result
-    except APIError:
+    except APIError as exc:
         with measure_compatibility_step(timings, "db_save_commit"):
             rollback_transaction(db)
         # SDK exception bodies can contain request data and provider internals.
-        logger.warning("Chart request failed: OpenAI service error; stage=%s", stage)
+        logger.warning(
+            "Chart request failed: OpenAI service error; stage=%s exception_type=%s",
+            stage, type(exc).__name__,
+        )
         raise HTTPException(
             status_code=503,
             detail="AI interpretation service is temporarily unavailable.",
         ) from None
-    except Exception:
+    except Exception as exc:
         with measure_compatibility_step(timings, "db_save_commit"):
             rollback_transaction(db)
-        logger.error("Chart request failed: internal error; stage=%s", stage)
+        logger.error(
+            "Chart request failed: internal error; stage=%s exception_type=%s",
+            stage, type(exc).__name__,
+        )
         raise HTTPException(
             status_code=500,
             detail="Unable to create chart. Please try again later.",
