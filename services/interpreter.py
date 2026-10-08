@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import time
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -20,6 +22,7 @@ from services.prompts.pet import PET_PROMPT
 load_dotenv()
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+usage_logger = logging.getLogger("uvicorn.error.openai_usage")
 
 
 # GPT에게 전달할 dominant planet ranking 상위 개수
@@ -113,12 +116,39 @@ def parse_interpretation(
     text_format: type[InterpretationType],
 ) -> InterpretationType:
     """대상별 프롬프트와 응답 스키마로 공통 GPT 호출을 수행한다."""
-    response = client.responses.parse(
-        model="gpt-6-luna",
-        instructions=instructions,
-        input=json.dumps(data),
-        text_format=text_format,
-    )
+    call_type = {
+        HumanInterpretation: "human",
+        PetInterpretation: "pet",
+        CompatibilityInterpretation: "compatibility",
+    }.get(text_format, "unknown")
+    serialized_input = json.dumps(data)
+    response = None
+    started = time.perf_counter()
+    try:
+        response = client.responses.parse(
+            model="gpt-6-luna",
+            instructions=instructions,
+            input=serialized_input,
+            text_format=text_format,
+        )
+    finally:
+        elapsed_seconds = time.perf_counter() - started
+        usage = getattr(response, "usage", None)
+        input_details = getattr(usage, "input_tokens_details", None)
+        output_details = getattr(usage, "output_tokens_details", None)
+        # Only allowlisted counts are logged; missing usage stays null, not zero.
+        usage_logger.info(
+            "openai_usage %s",
+            json.dumps({
+                "call_type": call_type,
+                "input_tokens": getattr(usage, "input_tokens", None),
+                "cached_tokens": getattr(input_details, "cached_tokens", None),
+                "output_tokens": getattr(usage, "output_tokens", None),
+                "reasoning_tokens": getattr(output_details, "reasoning_tokens", None),
+                "total_tokens": getattr(usage, "total_tokens", None),
+                "elapsed_seconds": round(elapsed_seconds, 6),
+            }),
+        )
     if response.output_parsed is None:
         raise RuntimeError("Failed to generate chart interpretation.")
     return response.output_parsed
