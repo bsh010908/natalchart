@@ -54,7 +54,7 @@ router = APIRouter(
 
 
 @router.post("/humans")
-@limiter.limit("5/minute")
+@limiter.limit("100/minute")
 def create_human_chart(
     request: Request,
     payload: HumanChartRequest,
