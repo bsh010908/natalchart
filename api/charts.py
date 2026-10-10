@@ -13,6 +13,9 @@ from astrology.compatibility import analyze_compatibility
 from services.interpreter import (
     interpret_human, interpret_pet, interpret_compatibility, prepare_chart_for_ai,
 )
+from services.geocoding import (
+    GeocodingServiceError, GeocodingAuthenticationError, GeocodingPermissionError,
+)
 from core.limiter import limiter
 from db.database import get_db
 from db.models import Pet, User
@@ -99,6 +102,23 @@ def create_human_chart(
             }
             db.commit()
         return result
+    except GeocodingServiceError as exc:
+        with measure_compatibility_step(timings, "db_save_commit"):
+            rollback_transaction(db)
+        logger.warning(
+            "Chart request failed: geocoding service error; stage=geocoding "
+            "category=%s exception_type=%s",
+            exc.category, type(exc).__name__,
+        )
+        if isinstance(exc, (GeocodingAuthenticationError, GeocodingPermissionError)):
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to create chart. Please try again later.",
+            ) from None
+        raise HTTPException(
+            status_code=503,
+            detail="Location lookup service is temporarily unavailable.",
+        ) from None
     except APIError as exc:
         with measure_compatibility_step(timings, "db_save_commit"):
             rollback_transaction(db)
@@ -260,6 +280,23 @@ def create_compatibility_chart(
             }
             db.commit()
         return result
+    except GeocodingServiceError as exc:
+        with measure_compatibility_step(timings, "db_save_commit"):
+            rollback_transaction(db)
+        logger.warning(
+            "Chart request failed: geocoding service error; stage=geocoding "
+            "category=%s exception_type=%s",
+            exc.category, type(exc).__name__,
+        )
+        if isinstance(exc, (GeocodingAuthenticationError, GeocodingPermissionError)):
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to create chart. Please try again later.",
+            ) from None
+        raise HTTPException(
+            status_code=503,
+            detail="Location lookup service is temporarily unavailable.",
+        ) from None
     except APIError as exc:
         with measure_compatibility_step(timings, "db_save_commit"):
             rollback_transaction(db)

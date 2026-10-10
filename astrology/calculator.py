@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 import swisseph as swe
-from geopy.geocoders import Nominatim
+from services.geocoding import geocode_place
 from timezonefinder import TimezoneFinder
 
 
@@ -69,13 +69,8 @@ def get_birth_data(
     birth_time: time | None,
     birth_place: str,
 ) -> dict:
-    with calculation_step("geocoder_initialization"):
-        geolocator = Nominatim(user_agent="pet_natal_chart", timeout=10)
-
     with calculation_step("geocoding"):
-        location = geolocator.geocode(birth_place)
-        if location is None:
-            raise ValueError(f"Birth place not found: {birth_place}")
+        location = geocode_place(birth_place)
 
         latitude = location.latitude
         longitude = location.longitude

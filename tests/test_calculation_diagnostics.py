@@ -5,7 +5,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from geopy.exc import GeocoderInsufficientPrivileges, GeocoderTimedOut, GeocoderRateLimited
+from services.geocoding import (GeocodingPermissionError, GeocodingTimeoutError,
+                                GeocodingRateLimitError, GeocodingNotFoundError)
 
 from astrology import calculator
 from tests import test_chart_transactions as transaction_tests
@@ -13,10 +14,10 @@ from tests import test_chart_transactions as transaction_tests
 
 class CalculationDiagnosticsTest(unittest.TestCase):
     def setUp(self):
-        self.geocoder_patch = patch.object(calculator, "Nominatim")
+        self.geocoder_patch = patch.object(calculator, "geocode_place")
         self.geocoder = self.geocoder_patch.start()
         self.addCleanup(self.geocoder_patch.stop)
-        self.geocoder.return_value.geocode.return_value = SimpleNamespace(latitude=37.5665, longitude=126.978)
+        self.geocoder.return_value = SimpleNamespace(latitude=37.5665, longitude=126.978)
         self.finder_patch = patch.object(calculator, "TimezoneFinder")
         self.finder = self.finder_patch.start()
         self.addCleanup(self.finder_patch.stop)
@@ -41,16 +42,16 @@ class CalculationDiagnosticsTest(unittest.TestCase):
         self.assertIsNone(record.stack_info)
 
     def test_geocoder_errors_are_safe_and_preserved(self):
-        for error_type in (GeocoderRateLimited, GeocoderTimedOut, GeocoderInsufficientPrivileges):
+        for error_type in (GeocodingRateLimitError, GeocodingTimeoutError, GeocodingPermissionError):
             with self.subTest(error=error_type):
                 exc = error_type("PRIVATE-CITY PRIVATE-KEY PRIVATE-RESPONSE")
                 self.check_failure("geocoding", exc,
-                    (self.geocoder.return_value, "geocode"), side_effect=exc)
-        self.geocoder.assert_called_with(user_agent="pet_natal_chart", timeout=10)
+                    (calculator, "geocode_place"), side_effect=exc)
 
     def test_missing_city(self):
-        self.check_failure("geocoding", ValueError(),
-                           (self.geocoder.return_value, "geocode"), return_value=None)
+        exc = GeocodingNotFoundError()
+        self.check_failure("geocoding", exc,
+                           (calculator, "geocode_place"), side_effect=exc)
 
     def test_missing_timezone(self):
         self.check_failure("timezone_lookup", ValueError(),
@@ -70,7 +71,6 @@ class CalculationDiagnosticsTest(unittest.TestCase):
     def test_repeated_city_is_currently_not_cached(self):
         self.call()
         self.call()
-        self.assertEqual(self.geocoder.return_value.geocode.call_count, 2)
         self.assertEqual(self.geocoder.call_count, 2)
         self.assertEqual(self.finder.call_count, 2)
 
@@ -93,12 +93,12 @@ class ApiCalculationDiagnosticsTest(unittest.TestCase):
         for compatibility in (False, True):
             with self.subTest(compatibility=compatibility):
                 self.events.clear()
-                with patch("api.charts.calculate_chart", side_effect=GeocoderTimedOut("PRIVATE-URL")):
-                    with self.assertLogs("api.charts", level="ERROR") as captured:
+                with patch("api.charts.calculate_chart", side_effect=GeocodingTimeoutError("PRIVATE-URL")):
+                    with self.assertLogs("api.charts", level="WARNING") as captured:
                         status, result = self.call(compatibility)
-                self.assertEqual(status, 500)
-                self.assertEqual(result, {"detail": "Unable to create chart. Please try again later."})
-                self.assertIn("stage=calculation exception_type=GeocoderTimedOut", captured.output[0])
+                self.assertEqual(status, 503)
+                self.assertEqual(result, {"detail": "Location lookup service is temporarily unavailable."})
+                self.assertIn("stage=geocoding category=timeout exception_type=GeocodingTimeoutError", captured.output[0])
                 self.assertNotIn("PRIVATE", captured.output[0])
                 self.assertIsNone(captured.records[0].exc_info)
                 self.assertNotIn("checkout", self.events)
